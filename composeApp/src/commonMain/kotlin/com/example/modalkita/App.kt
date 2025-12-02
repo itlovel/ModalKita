@@ -15,117 +15,209 @@ import com.example.modalkita.ui.auth.OnBoardingScreen
 import com.example.modalkita.ui.auth.SplashScreen
 import com.example.modalkita.ui.theme.ModalKitaTheme
 
+enum class StartScreen {
+    Splash,
+    Onboarding,
+    Auth,
+    Main
+}
+
 @Composable
 fun App() {
     ModalKitaTheme {
 
         var isLoggedIn by remember { mutableStateOf(false) }
-
-        // NAVIGASI AWAL
-        var startScreen by remember { mutableStateOf("splash") }
+        var startScreen by remember { mutableStateOf(StartScreen.Splash) }
 
         when (startScreen) {
-
-            // SPLASH → KE ONBOARDING
-            "splash" -> SplashScreen(
-                onFinished = {
-                    startScreen = "onboarding"
-                }
-            )
-
-            // ONBOARDING → KE AUTH FLOW
-            "onboarding" -> OnBoardingScreen(
-                onNext = {
-                    startScreen = "auth"
-                }
-            )
-
-            // AUTH / MAIN APP
-            "auth" -> {
-                AuthFlow(
-                    isLoggedIn = isLoggedIn,
-                    onLoggedIn = { isLoggedIn = true }
+            StartScreen.Splash -> {
+                SplashScreen(
+                    onFinished = {
+                        // Jika auto-login Supabase, cek session di sini
+                        startScreen = StartScreen.Onboarding
+                    }
                 )
+            }
+
+            StartScreen.Onboarding -> {
+                OnBoardingScreen(
+                    onNext = {
+                        startScreen = StartScreen.Auth
+                    }
+                )
+            }
+
+            StartScreen.Auth -> {
+                AuthFlow(
+                    onLoggedIn = {
+                        isLoggedIn = true
+                        startScreen = StartScreen.Main
+                    }
+                )
+            }
+
+            StartScreen.Main -> {
+                MainTabScaffold()
             }
         }
     }
 }
 
-/* ============================================================
-   ======================= AUTH FLOW ==========================
-   ============================================================ */
+/* ======================= MAIN TABS ========================== */
+
+@Composable
+private fun MainTabScaffold() {
+    var selectedTab by remember { mutableStateOf(BottomNavItem.Home) }
+
+    Scaffold(
+        bottomBar = {
+            ModalKitaBottomBar(
+                selectedItem = selectedTab,
+                onItemSelected = { selectedTab = it }
+            )
+        }
+    ) { padding ->
+        when (selectedTab) {
+            BottomNavItem.Home ->
+                HomeScreen(modifier = Modifier.padding(padding))
+
+            BottomNavItem.Funding ->
+                FundingScreen(modifier = Modifier.padding(padding))
+
+            BottomNavItem.Loans ->
+                LoansScreen(modifier = Modifier.padding(padding))
+
+            BottomNavItem.Profile ->
+                ProfileScreen(modifier = Modifier.padding(padding))
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen(modifier: Modifier = Modifier) {
+    Text("Home screen", modifier = modifier)
+}
+
+@Composable
+private fun FundingScreen(modifier: Modifier = Modifier) {
+    Text("Funding screen", modifier = modifier)
+}
+
+@Composable
+private fun LoansScreen(modifier: Modifier = Modifier) {
+    Text("Loans screen", modifier = modifier)
+}
+
+@Composable
+private fun ProfileScreen(modifier: Modifier = Modifier) {
+    Text("Profile screen", modifier = modifier)
+}
+
+/* ======================= AUTH FLOW ========================== */
 
 @Composable
 fun AuthFlow(
-    isLoggedIn: Boolean,
     onLoggedIn: () -> Unit
 ) {
-
     var authScreen by remember { mutableStateOf("role") }
 
-    if (isLoggedIn) {
+    // Menyimpan data dari form step 1 (nama, email, hp, password) untuk borrower
+    var borrowerStep1Data by remember { mutableStateOf<BorrowerStep1Data?>(null) }
 
-        // ========== MAIN TAB ==========
+    when (authScreen) {
 
-        var selectedTab by remember { mutableStateOf(BottomNavItem.Home) }
+        // ==== PILIH ROLE ====
+        "role" -> PilihRole(
+            onBorrowerClicked = { authScreen = "borrowerIntro" },
+            onInvestorClicked = { authScreen = "investorIntro" }
+        )
 
-        Scaffold(
-            bottomBar = {
-                ModalKitaBottomBar(
-                    selectedItem = selectedTab,
-                    onItemSelected = { selectedTab = it }
+        // ================== BORROWER FLOW ==================
+
+        // Landing / penjelasan Borrower
+        "borrowerIntro" -> BorrowerAuthLanding(
+            onRegisterClicked = { authScreen = "borrowerRegisterStep1" },
+            onLoginClicked = { authScreen = "borrowerLogin" }
+        )
+
+        // Login Borrower (pakai LoginScreen generik)
+        "borrowerLogin" -> LoginScreen(
+            roleLabel = "Peminjam (Borrower)",
+            onLoginSuccess = {
+                // Login berhasil (AuthViewModel.login sukses)
+                onLoggedIn()
+            },
+            onRegisterClicked = {
+                authScreen = "borrowerRegisterStep1"
+            }
+        )
+
+        // Registrasi Borrower – Step 1 (data akun)
+        "borrowerRegisterStep1" -> BorrowerRegisterStep1(
+            onNextClicked = { dataFromStep1 ->
+                borrowerStep1Data = dataFromStep1
+                authScreen = "borrowerRegisterStep2"
+            },
+            onLoginClicked = {
+                authScreen = "borrowerLogin"
+            }
+        )
+
+        // Registrasi Borrower – Step 2 (data usaha)
+        "borrowerRegisterStep2" -> {
+            val step1Data = borrowerStep1Data
+            if (step1Data != null) {
+                BorrowerRegisterStep2(
+                    step1Data = step1Data,
+                    onRegisterSuccess = {
+                        // registerBorrower sukses di AuthViewModel
+                        onLoggedIn()
+                    },
+                    onBackToLogin = {
+                        authScreen = "borrowerLogin"
+                    }
+                )
+            } else {
+                // Safety fallback: kalau entah bagaimana step1Data null, balik ke step 1
+                BorrowerRegisterStep1(
+                    onNextClicked = { dataFromStep1 ->
+                        borrowerStep1Data = dataFromStep1
+                        authScreen = "borrowerRegisterStep2"
+                    },
+                    onLoginClicked = { authScreen = "borrowerLogin" }
                 )
             }
-        ) { padding ->
-            when (selectedTab) {
-                BottomNavItem.Home ->
-                    Text("Home screen", modifier = Modifier.padding(padding))
+        }
 
-                BottomNavItem.Funding ->
-                    Text("Funding screen", modifier = Modifier.padding(padding))
+        // ================== INVESTOR FLOW ==================
 
-                BottomNavItem.Loans ->
-                    Text("Loans screen", modifier = Modifier.padding(padding))
+        // Landing / penjelasan Investor
+        "investorIntro" -> InvestorAuthLanding(
+            onRegisterClicked = { authScreen = "investorRegister" },
+            onLoginClicked = { authScreen = "investorLogin" }
+        )
 
-                BottomNavItem.Profile ->
-                    Text("Profile screen", modifier = Modifier.padding(padding))
+        // Login Investor (pakai LoginScreen yang sama)
+        "investorLogin" -> LoginScreen(
+            roleLabel = "Investor",
+            onLoginSuccess = {
+                onLoggedIn()
+            },
+            onRegisterClicked = {
+                authScreen = "investorRegister"
             }
-        }
+        )
 
-    } else {
-
-        // ========== AUTH FLOW ==========
-
-        when (authScreen) {
-
-            "role" -> PilihRole(
-                onBorrowerClicked = { authScreen = "borrowerIntro" },
-                onInvestorClicked = { authScreen = "investorIntro" }
-            )
-
-            "borrowerIntro" -> BorrowerAuth(
-                onRegisterClicked = { authScreen = "register" },
-                onLoginClicked = { authScreen = "login" }
-            )
-
-            "investorIntro" -> Text("Halaman Investor (coming soon)")
-
-            "login" -> BorrowerAuthMasuk(
-                onLoginClicked = { onLoggedIn() },
-                onRegisterClicked = { authScreen = "register" },
-                onForgotPasswordClicked = {}
-            )
-
-            "register" -> BorrowerAuthDaftar(
-                onNextClicked = { authScreen = "registerDetail" },
-                onLoginClicked = { authScreen = "login" }
-            )
-
-            "registerDetail" -> BorrowerAuthDaftar2(
-                onRegisterClicked = { onLoggedIn() },
-                onLoginClicked = { authScreen = "login" }
-            )
-        }
+        // Registrasi Investor (satu langkah saja)
+        "investorRegister" -> InvestorRegisterScreen(
+            onRegisterSuccess = {
+                // registerInvestor sukses di AuthViewModel
+                onLoggedIn()
+            },
+            onLoginClicked = {
+                authScreen = "investorLogin"
+            }
+        )
     }
 }
 

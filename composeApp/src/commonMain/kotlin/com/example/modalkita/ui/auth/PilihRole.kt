@@ -40,7 +40,6 @@ fun PilihRole(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            // ===== LOGO =====
             Image(
                 painter = painterResource(Res.drawable.modal_kita_logo),
                 contentDescription = null,
@@ -69,7 +68,6 @@ fun PilihRole(
 
             Spacer(modifier = Modifier.height(100.dp))
 
-            // ===== PILIH ROLE =====
             Text(
                 text = "Ingin Masuk Sebagai?",
                 style = typography.bodyLarge,
@@ -78,9 +76,8 @@ fun PilihRole(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Primary Button (Borrower)
             PrimaryButton(
-                label = "Borrower/Peminjam",
+                label = "Borrower / Peminjam",
                 onClick = onBorrowerClicked,
                 modifier = Modifier
                     .height(50.dp)
@@ -97,7 +94,6 @@ fun PilihRole(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            // Outlined Button (Investor)
             OutlinedButton(
                 onClick = onInvestorClicked,
                 modifier = Modifier
@@ -110,7 +106,7 @@ fun PilihRole(
                 )
             ) {
                 Text(
-                    "Investor/Pemberi Dana",
+                    "Investor / Pemberi Dana",
                     style = typography.titleLarge.copy(fontWeight = FontWeight.SemiBold)
                 )
             }

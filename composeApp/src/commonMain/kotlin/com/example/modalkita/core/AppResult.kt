@@ -1,5 +1,6 @@
 package com.example.modalkita.core
 
-class AppResult {
-    // wrapper Success/Error
+sealed class AppResult<out T> {
+    data class Success<T>(val data: T) : AppResult<T>()
+    data class Error(val throwable: Throwable) : AppResult<Nothing>()
 }
