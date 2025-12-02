@@ -60,23 +60,36 @@ class BorrowerRepositoryImpl(
         val user = supabaseClient.auth.currentUserOrNull()
             ?: error("User not logged in")
 
-        // borrowers row
-        val borrowerRow = supabaseClient
+        // ==== 1. Ambil data borrower (boleh kosong) ====
+        val borrowerList = supabaseClient
             .from("borrowers")
             .select {
                 filter {
                     eq("id", user.id)
                 }
             }
-            .decodeSingle<BorrowerDto>()
+            .decodeList<BorrowerDto>()
 
-        // 1 loan aktif (kalau nanti mau filter status, tambahkan di filter)
+        val borrowerRow = borrowerList.firstOrNull()
+
+        // ==== 2. Tentukan username & creditScore default ====
+        val metaUsername = (user.userMetadata?.get("username") as? String)
+
+        val username: String =
+            borrowerRow?.username
+                ?: metaUsername
+                ?: user.email?.substringBefore("@")
+                ?: "User"
+
+        val creditScore: Int = borrowerRow?.creditScore ?: 1000  // DEFAULT 1000
+
+        // ==== 3. Ambil 1 loan aktif (boleh null) ====
         val loanRow = supabaseClient
             .from("umkm_loans")
             .select {
                 filter {
                     eq("borrower_id", user.id)
-                    // contoh kalau mau exclude yang sudah selesai:
+                    // kalau mau exclude yg sudah selesai:
                     // neq("status", "completed")
                 }
             }
@@ -84,11 +97,11 @@ class BorrowerRepositoryImpl(
             .firstOrNull()
 
         val loanDashboard = mapLoanToDashboard(loanRow)
-        val category: CreditCategory = borrowerRow.creditScore.toCreditCategory()
+        val category: CreditCategory = creditScore.toCreditCategory()
 
         return BorrowerHomeDashboard(
-            username = borrowerRow.username,
-            creditScore = borrowerRow.creditScore,
+            username = username,
+            creditScore = creditScore,
             creditCategory = category,
             canApply = category.canApply(),
             activeApplicationStatus = loanDashboard.status,
