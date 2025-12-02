@@ -1,4 +1,3 @@
-import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -6,6 +5,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    kotlin("plugin.serialization") version "2.2.20"
 }
 
 kotlin {
@@ -29,6 +29,9 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+
+            // Engine Ktor untuk Android
+            implementation("io.ktor:ktor-client-okhttp:3.3.3")
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -41,6 +44,22 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(projects.shared)
             implementation(compose.materialIconsExtended)
+
+            // ===== Supabase (pilih salah satu gaya: BOM ATAU versi eksplisit) =====
+
+            // Gaya 1: pakai BOM (rekomendasi, biar versi konsisten)
+            implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.2.6"))
+            implementation("io.github.jan-tennert.supabase:auth-kt")
+            implementation("io.github.jan-tennert.supabase:postgrest-kt")
+
+            // ===== Ktor client core (wajib satu versi yang sama) =====
+            implementation("io.ktor:ktor-client-core:3.3.3")
+            implementation("io.ktor:ktor-client-cio:3.3.3")
+
+            // ===== Coroutines =====
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
 
         }
         commonTest.dependencies {
