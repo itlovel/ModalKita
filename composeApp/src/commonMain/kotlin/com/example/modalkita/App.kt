@@ -5,6 +5,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.example.modalkita.data.remote.SupabaseClientProvider
+import com.example.modalkita.data.repository.BorrowerRepositoryImpl
+import com.example.modalkita.domain.usecase.GetBorrowerDashboardUseCase
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 import com.example.modalkita.ui.auth.*
@@ -14,6 +17,9 @@ import com.example.modalkita.ui.auth.OnBoardingScreen
 
 import com.example.modalkita.ui.auth.SplashScreen
 import com.example.modalkita.ui.theme.ModalKitaTheme
+
+import com.example.modalkita.ui.borrower.home.BorrowerHomeScreen
+import com.example.modalkita.ui.borrower.home.BorrowerHomeViewModel
 
 enum class StartScreen {
     Splash,
@@ -95,7 +101,26 @@ private fun MainTabScaffold() {
 
 @Composable
 private fun HomeScreen(modifier: Modifier = Modifier) {
-    Text("Home screen", modifier = modifier)
+    // Ambil SupabaseClient dari provider yang sudah kamu punya
+    val supabaseClient = remember { SupabaseClientProvider.client }
+
+    // Build dependency untuk ViewModel
+    val viewModel: BorrowerHomeViewModel = remember {
+        val repository = BorrowerRepositoryImpl(supabaseClient)
+        val useCase = GetBorrowerDashboardUseCase(repository)
+        BorrowerHomeViewModel(useCase)
+    }
+
+    BorrowerHomeScreen(
+        viewModel = viewModel,
+        onNewApplicationClick = {
+            // TODO: nanti navigate ke halaman pengajuan baru
+        },
+        onApplicationDetailClick = {
+            // TODO: navigate ke detail pinjaman
+        },
+        modifier = modifier
+    )
 }
 
 @Composable
