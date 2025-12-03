@@ -3,7 +3,9 @@ package com.example.modalkita.data.kyc
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// Baris di tabel kyc_profiles Supabase
+/**
+ * Model KYC yang dipakai di sisi UI / domain (SETELAH didekripsi).
+ */
 @Serializable
 data class KycProfile(
     @SerialName("id")
@@ -13,7 +15,7 @@ data class KycProfile(
     val nik: String,
 
     @SerialName("birth_date")
-    val birthDate: String,     // simpan sebagai string "dd/MM/yyyy" atau "yyyy-MM-dd"
+    val birthDate: String,     // "dd/MM/yyyy" atau "yyyy-MM-dd"
 
     @SerialName("address")
     val address: String,
@@ -28,7 +30,11 @@ data class KycProfile(
     val isVerified: Boolean = false
 )
 
-// Input dari form KYC
+/**
+ * Input dari form KYC di layar.
+ * Ini TIDAK langsung dikirim ke Supabase, tapi divalidasi dulu
+ * lewat "smart contract" rules di bawah.
+ */
 data class KycInput(
     val nik: String,
     val birthDate: String,
@@ -39,8 +45,15 @@ data class KycInput(
 )
 
 /**
- * "Smart contract" rules sederhana untuk KYC.
- * Di presentasi: ini adalah aturan otomatis untuk menerima / menolak KYC.
+ * "Smart contract" sederhana untuk eKYC:
+ * - NIK harus 16 digit
+ * - Tanggal lahir tidak boleh kosong
+ * - Alamat minimal 10 karakter
+ * - Wajib upload foto KTP & selfie KTP
+ * - Wajib checklist pernyataan validitas
+ *
+ * Di laporan kamu bisa jelaskan ini sebagai:
+ * "aturan otomatis (contract) yang menentukan apakah KYC diterima/ditolak"
  */
 object KycContractRules {
 

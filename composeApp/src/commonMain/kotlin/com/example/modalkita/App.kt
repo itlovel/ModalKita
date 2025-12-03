@@ -22,7 +22,6 @@ import com.example.modalkita.ui.profile.InvestorProfileRoot
 import com.example.modalkita.ui.theme.ModalKitaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-// penting: dua ini supaya 'var x by remember { ... }' tidak error
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -57,7 +56,7 @@ fun App(
                 role = currentRole!!,
                 openMidtransPayment = openMidtransPayment,
                 onLoggedOut = {
-                    // Logout global: balik lagi ke AuthFlow
+                    // Reset ke state awal (kembali ke AuthFlow)
                     currentRole = null
                 }
             )
@@ -88,11 +87,10 @@ fun MainScreen(
         when (selectedItem) {
 
             BottomNavItem.Home -> {
-                // Placeholder home, bisa kamu ganti dengan dashboard beneran
                 Text(
                     text = when (role) {
-                        UserRole.INVESTOR -> "Home Investor (dashboard investor di sini)"
-                        UserRole.BORROWER -> "Home Borrower (dashboard borrower di sini)"
+                        UserRole.INVESTOR -> "Home Investor (dashboard investor nanti di sini)"
+                        UserRole.BORROWER -> "Home Borrower (dashboard borrower nanti di sini)"
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -120,21 +118,14 @@ fun MainScreen(
             }
 
             BottomNavItem.Loans -> {
-                if (role == UserRole.INVESTOR) {
-                    InvestorInvestmentRoot(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        onOpenPaymentLink = openMidtransPayment
-                    )
-                } else {
-                    Text(
-                        text = "Fitur investasi hanya bisa diakses oleh Investor.",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    )
-                }
+                // Di desain awal: tab ini kamu pakai sebagai halaman "Investasi Saya"
+                // untuk INVESTOR. Kalau mau dibedakan untuk borrower, tinggal if role.
+                InvestorInvestmentRoot(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    onOpenPaymentLink = openMidtransPayment
+                )
             }
 
             BottomNavItem.Profile -> {
@@ -143,10 +134,9 @@ fun MainScreen(
                         .fillMaxSize()
                         .padding(innerPadding),
                     onLoggedOut = {
-                        // Reset tab ke Home
-                        selectedItem = BottomNavItem.Home
-                        // Beri tahu App bahwa user sudah logout
                         onLoggedOut()
+                        // Balik tab ke Home supaya aman
+                        selectedItem = BottomNavItem.Home
                     }
                 )
             }
@@ -162,7 +152,6 @@ fun AuthFlow(
 ) {
     var authScreen by remember { mutableStateOf("role") }
 
-    // Pakai BorrowerStep1Data dari ui.auth
     var borrowerStep1Data by remember { mutableStateOf<BorrowerStep1Data?>(null) }
 
     when (authScreen) {
@@ -213,7 +202,6 @@ fun AuthFlow(
                     }
                 )
             } else {
-                // fallback kalau somehow null, balik ke step 1
                 BorrowerRegisterStep1(
                     onNextClicked = { dataFromStep1: BorrowerStep1Data ->
                         borrowerStep1Data = dataFromStep1

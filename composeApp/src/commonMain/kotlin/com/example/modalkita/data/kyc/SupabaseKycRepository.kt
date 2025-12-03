@@ -7,13 +7,11 @@ import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-// ============================================================
-//  Interface Repository yang dipakai di UI (InvestorProfileScreen)
-// ============================================================
-
+/**
+ * Kontrak repository KYC yang dipakai layer UI.
+ */
 interface KycRepository {
     suspend fun getMyKyc(): KycProfile?
-
     suspend fun upsertMyKyc(
         nik: String,
         birthDate: String,
@@ -23,48 +21,68 @@ interface KycRepository {
     ): KycProfile
 }
 
-// DTO untuk upsert ke Supabase, mengikuti struktur tabel kyc_profiles
+/**
+ * Model BARIS asli di tabel Supabase (TERENKRIPSI).
+ * Semua field sensitif disimpan dalam bentuk cipher-text (String).
+ */
 @Serializable
-private data class KycUpsertDto(
+private data class KycRow(
     @SerialName("id")
-    val id: String,   // sama dengan auth.users.id & PK di kyc_profiles
+    val id: String, // sama dengan auth.users.id
 
     @SerialName("nik")
-    val nik: String,
+    val nikCipher: String,
 
     @SerialName("birth_date")
-    val birthDate: String,
+    val birthDateCipher: String,
 
     @SerialName("address")
-    val address: String,
+    val addressCipher: String,
 
     @SerialName("ktp_photo_url")
-    val ktpPhotoUrl: String? = null,
+    val ktpPhotoUrlCipher: String? = null,
 
     @SerialName("selfie_ktp_url")
-    val selfieKtpUrl: String? = null
+    val selfieKtpUrlCipher: String? = null,
+
+    @SerialName("is_verified")
+    val isVerified: Boolean = false
 )
+
+private fun KycRow.toDomain(): KycProfile =
+    KycProfile(
+        id = id,
+        nik = KycCrypto.decrypt(nikCipher),
+        birthDate = KycCrypto.decrypt(birthDateCipher),
+        address = KycCrypto.decrypt(addressCipher),
+        ktpPhotoUrl = ktpPhotoUrlCipher?.let { KycCrypto.decrypt(it) },
+        selfieKtpUrl = selfieKtpUrlCipher?.let { KycCrypto.decrypt(it) },
+        isVerified = isVerified
+    )
 
 class SupabaseKycRepository(
     private val client: SupabaseClient = SupabaseClientProvider.client
 ) : KycRepository {
 
-    // --------------------------------------------------------
-    // Ambil KYC milik user yang sedang login
-    // RLS di Supabase sebaiknya:
-    //   SELECT:  id = auth.uid()
-    // --------------------------------------------------------
+    /**
+     * Ambil KYC milik user yang sedang login.
+     * Mengandalkan RLS "hanya boleh akses baris milik sendiri".
+     */
     override suspend fun getMyKyc(): KycProfile? {
-        val rows = client.postgrest["kyc_profiles"]
-            .select()
-            .decodeList<KycProfile>()   // KycProfile dari KycModel.kt
+        val user = client.auth.currentUserOrNull() ?: return null
 
-        return rows.firstOrNull()
+        val rows = client.postgrest["kyc_profiles"]
+            .select()          // RLS akan membatasi ke id = auth.uid()
+            .decodeList<KycRow>()
+
+        val row = rows.firstOrNull { it.id == user.id } ?: return null
+        return row.toDomain()
     }
 
-    // --------------------------------------------------------
-    // Insert / update (upsert) data KYC user saat ini
-    // --------------------------------------------------------
+    /**
+     * Insert atau update (upsert) data KYC milik user yang login.
+     * Semua field disimpan dalam bentuk terenkripsi.
+     */
     override suspend fun upsertMyKyc(
         nik: String,
         birthDate: String,
@@ -73,23 +91,25 @@ class SupabaseKycRepository(
         selfieKtpUrl: String?
     ): KycProfile {
         val user = client.auth.currentUserOrNull()
-            ?: throw IllegalStateException("Harus login terlebih dahulu.")
+            ?: throw IllegalStateException("Harus login terlebih dahulu")
 
-        val dto = KycUpsertDto(
+        val encryptedRow = KycRow(
             id = user.id,
-            nik = nik,
-            birthDate = birthDate,
-            address = address,
-            ktpPhotoUrl = ktpPhotoUrl,
-            selfieKtpUrl = selfieKtpUrl
+            nikCipher = KycCrypto.encrypt(nik),
+            birthDateCipher = KycCrypto.encrypt(birthDate),
+            addressCipher = KycCrypto.encrypt(address),
+            ktpPhotoUrlCipher = ktpPhotoUrl?.let { KycCrypto.encrypt(it) },
+            selfieKtpUrlCipher = selfieKtpUrl?.let { KycCrypto.encrypt(it) },
+            isVerified = false      // default: belum diverifikasi admin
         )
 
-        // Upsert berdasarkan primary key "id".
-        // Tidak perlu pakai onConflict, biarkan pakai PK default.
-        return client.postgrest["kyc_profiles"]
-            .upsert(dto) {
-                select()   // minta row hasil upsert dikembalikan
+        // upsert berdasarkan primary key `id`
+        val savedRow = client.postgrest["kyc_profiles"]
+            .upsert(encryptedRow) {   // tidak pakai onConflict agar aman di semua versi lib
+                select()             // kembalikan row setelah upsert
             }
-            .decodeSingle<KycProfile>()
+            .decodeSingle<KycRow>()
+
+        return savedRow.toDomain()
     }
 }

@@ -25,7 +25,6 @@ import com.example.modalkita.ui.theme.ModalKitaColors
 import com.example.modalkita.ui.theme.modalKitaTypography
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
-//import io.github.jan.supabase.postgrest.decodeList
 import kotlinx.coroutines.launch
 
 /* ============================================================
@@ -42,7 +41,7 @@ private enum class ProfileSubScreen {
 fun InvestorProfileRoot(
     modifier: Modifier = Modifier,
     kycRepository: KycRepository = SupabaseKycRepository(),
-    onLoggedOut: () -> Unit        // <-- diperbaiki: harus () -> Unit
+    onLoggedOut: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -60,7 +59,8 @@ fun InvestorProfileRoot(
             val user = client.auth.currentUserOrNull()
 
             if (user != null) {
-                // Dengan RLS: hanya mengembalikan baris milik user yang login
+                // Dengan RLS, select tanpa filter hanya mengembalikan
+                // baris user_profiles milik user tersebut.
                 val rows = client.postgrest["user_profiles"]
                     .select()
                     .decodeList<UserProfile>()
@@ -399,7 +399,7 @@ private fun InvestorKycScreen(
                 hint = "Upload Foto (Max. 5MB)",
                 isUploaded = hasKtpPhoto,
                 onClick = {
-                    // TODO: Integrasi file picker + Supabase Storage
+                    // TODO: integrasi file-picker + Supabase Storage
                     hasKtpPhoto = true
                 }
             )
@@ -411,6 +411,7 @@ private fun InvestorKycScreen(
                 hint = "Upload Foto (Max. 5MB)",
                 isUploaded = hasSelfieKtp,
                 onClick = {
+                    // TODO: integrasi file-picker + Supabase Storage
                     hasSelfieKtp = true
                 }
             )
@@ -465,6 +466,7 @@ private fun InvestorKycScreen(
                             isSaving = true
                             error = null
 
+                            // sementara: URL dummy, nanti diganti hasil upload Storage
                             val saved = kycRepository.upsertMyKyc(
                                 nik = nik,
                                 birthDate = birthDate,
@@ -619,20 +621,31 @@ private fun InvestorEditProfileScreen(
                             val user = client.auth.currentUserOrNull()
                                 ?: throw IllegalStateException("Belum login.")
 
-                            val updatedRow = client.postgrest["user_profiles"]
+                            // Kalau tidak ada existingProfile, lebih aman kasih error
+                            // daripada nebak-nebak constructor UserProfile (yang punya 'role' dll).
+                            val currentProfile = existingProfile
+                                ?: run {
+                                    error = "Profil belum tersedia di server. Silakan logout lalu login ulang."
+                                    return@launch
+                                }
+
+                            // Update ke Supabase (RLS: hanya baris milik user)
+                            client.postgrest["user_profiles"]
                                 .update(
                                     mapOf(
                                         "full_name" to fullName,
                                         "phone" to phone
                                     )
                                 ) {
-                                    // Tidak pakai eq(); RLS batasi otomatis ke user ini
                                     select()
                                 }
-                                .decodeList<UserProfile>()
-                                .first()
 
-                            onProfileUpdated(updatedRow)
+                            val updated = currentProfile.copy(
+                                fullName = fullName,
+                                phone = phone
+                            )
+
+                            onProfileUpdated(updated)
                         } catch (e: Exception) {
                             error = e.message ?: "Gagal menyimpan profil."
                         } finally {
