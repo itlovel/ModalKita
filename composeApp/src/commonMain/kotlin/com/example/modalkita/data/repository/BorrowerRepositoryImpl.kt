@@ -5,6 +5,8 @@ import com.example.modalkita.data.dto.LoanDto
 import com.example.modalkita.domain.model.BorrowerHomeDashboard
 import com.example.modalkita.domain.model.CreditCategory
 import com.example.modalkita.domain.model.LoanApplicationStatus
+import com.example.modalkita.domain.model.NewLoanDraft
+import com.example.modalkita.domain.model.NewLoanSummary
 import com.example.modalkita.domain.model.canApply
 import com.example.modalkita.domain.model.toCreditCategory
 import com.example.modalkita.domain.repository.BorrowerRepository
@@ -111,4 +113,30 @@ class BorrowerRepositoryImpl(
             fundedAmount = loanDashboard.fundedAmount
         )
     }
+
+    override suspend fun createLoanApplication(
+        draft: NewLoanDraft,
+        summary: NewLoanSummary
+    ) {
+        val user = supabaseClient.auth.currentUserOrNull()
+            ?: error("User not logged in")
+
+        supabaseClient
+            .from("umkm_loans")
+            .insert(
+                mapOf(
+                    "borrower_id" to user.id,
+                    "amount" to draft.amount,
+                    "tenor_months" to draft.tenorMonths,
+                    "purpose" to draft.purpose.label,
+                    "description" to draft.description,
+                    "status" to "peninjauan",  // default
+                    // opsional simpan field yg lain:
+                    "total_to_pay" to summary.totalToPay,
+                    "installment_per_month" to summary.installmentPerMonth,
+                    "penalty_per_day" to summary.penaltyPerDayLate
+                )
+            )
+    }
+
 }

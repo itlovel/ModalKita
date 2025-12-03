@@ -7,6 +7,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.example.modalkita.data.remote.SupabaseClientProvider
 import com.example.modalkita.data.repository.BorrowerRepositoryImpl
+import com.example.modalkita.domain.usecase.CalculateLoanSummaryUseCase
+import com.example.modalkita.domain.usecase.CreateLoanApplicationUseCase
 import com.example.modalkita.domain.usecase.GetBorrowerDashboardUseCase
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -20,6 +22,9 @@ import com.example.modalkita.ui.theme.ModalKitaTheme
 
 import com.example.modalkita.ui.borrower.home.BorrowerHomeScreen
 import com.example.modalkita.ui.borrower.home.BorrowerHomeViewModel
+import com.example.modalkita.ui.borrower.loan.new.NewLoanFormScreen
+import com.example.modalkita.ui.borrower.loan.new.NewLoanSummaryScreen
+import com.example.modalkita.ui.borrower.loan.new.NewLoanViewModel
 
 enum class StartScreen {
     Splash,
@@ -99,28 +104,67 @@ private fun MainTabScaffold() {
     }
 }
 
+private enum class BorrowerHomeRoute {
+    Dashboard,
+    NewLoanForm,
+    NewLoanSummary
+}
+
 @Composable
 private fun HomeScreen(modifier: Modifier = Modifier) {
-    // Ambil SupabaseClient dari provider yang sudah kamu punya
     val supabaseClient = remember { SupabaseClientProvider.client }
 
-    // Build dependency untuk ViewModel
-    val viewModel: BorrowerHomeViewModel = remember {
-        val repository = BorrowerRepositoryImpl(supabaseClient)
-        val useCase = GetBorrowerDashboardUseCase(repository)
+    // dashboard vm
+    val dashboardVm = remember {
+        val repo = BorrowerRepositoryImpl(supabaseClient)
+        val useCase = GetBorrowerDashboardUseCase(repo)
         BorrowerHomeViewModel(useCase)
     }
 
-    BorrowerHomeScreen(
-        viewModel = viewModel,
-        onNewApplicationClick = {
-            // TODO: nanti navigate ke halaman pengajuan baru
-        },
-        onApplicationDetailClick = {
-            // TODO: navigate ke detail pinjaman
-        },
-        modifier = modifier
-    )
+    // new loan vm
+    val newLoanVm = remember {
+        val repo = BorrowerRepositoryImpl(supabaseClient)
+        val calc = CalculateLoanSummaryUseCase()
+        val create = CreateLoanApplicationUseCase(repo)
+        NewLoanViewModel(calc, create)
+    }
+
+    var route by remember { mutableStateOf(BorrowerHomeRoute.Dashboard) }
+
+    when (route) {
+        BorrowerHomeRoute.Dashboard -> BorrowerHomeScreen(
+            viewModel = dashboardVm,
+            onNewApplicationClick = {
+                route = BorrowerHomeRoute.NewLoanForm
+            },
+            onApplicationDetailClick = {
+                // nanti ke screen detail
+            },
+            modifier = modifier
+        )
+
+        BorrowerHomeRoute.NewLoanForm -> NewLoanFormScreen(
+            viewModel = newLoanVm,
+            onBack = { route = BorrowerHomeRoute.Dashboard },
+            onNext = {
+                if (newLoanVm.buildSummary()) {
+                    route = BorrowerHomeRoute.NewLoanSummary
+                }
+            },
+            modifier = modifier
+        )
+
+        BorrowerHomeRoute.NewLoanSummary -> NewLoanSummaryScreen(
+            viewModel = newLoanVm,
+            onBack = { route = BorrowerHomeRoute.NewLoanForm },
+            onSubmitSuccess = {
+                // refresh dashboard
+                dashboardVm.loadDashboard()
+                route = BorrowerHomeRoute.Dashboard
+            },
+            modifier = modifier
+        )
+    }
 }
 
 @Composable
