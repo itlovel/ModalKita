@@ -17,12 +17,13 @@ import com.example.modalkita.ui.auth.PilihRole
 import com.example.modalkita.ui.components.BottomNavItem
 import com.example.modalkita.ui.components.ModalKitaBottomBar
 import com.example.modalkita.ui.funding.InvestorFundingRoot
+import com.example.modalkita.ui.investment.InvestorInvestmentRoot
+import com.example.modalkita.ui.profile.InvestorProfileRoot
 import com.example.modalkita.ui.theme.ModalKitaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.example.modalkita.ui.borrower.home.BorrowerHomeRoot
 
 
-// penting: dua ini supaya 'var x by remember { ... }' tidak error
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.example.modalkita.ui.borrower.loan.new.NewLoanRoot
@@ -56,7 +57,11 @@ fun App(
             // Setelah login, masuk ke layar utama yang pakai bottom nav
             MainScreen(
                 role = currentRole!!,
-                openMidtransPayment = openMidtransPayment
+                openMidtransPayment = openMidtransPayment,
+                onLoggedOut = {
+                    // Reset ke state awal (kembali ke AuthFlow)
+                    currentRole = null
+                }
             )
         }
     }
@@ -67,7 +72,8 @@ fun App(
 @Composable
 fun MainScreen(
     role: UserRole,
-    openMidtransPayment: (String) -> Unit
+    openMidtransPayment: (String) -> Unit,
+    onLoggedOut: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(BottomNavItem.Home) }
 
@@ -153,22 +159,26 @@ fun MainScreen(
             }
 
             BottomNavItem.Loans -> {
-                // Placeholder, nanti kamu isi dengan fitur pinjaman (sesuai role)
-                Text(
-                    text = "Halaman Loans (nanti diisi sesuai kebutuhan tugas).",
+                // Di desain awal: tab ini kamu pakai sebagai halaman "Investasi Saya"
+                // untuk INVESTOR. Kalau mau dibedakan untuk borrower, tinggal if role.
+                InvestorInvestmentRoot(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding),
+                    onOpenPaymentLink = openMidtransPayment
                 )
             }
 
             BottomNavItem.Profile -> {
-                // Placeholder, nanti kamu isi dengan profil user (nama, email, role, dll)
-                Text(
-                    text = "Halaman Profil (nanti diisi data profil Supabase).",
+                InvestorProfileRoot(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding),
+                    onLoggedOut = {
+                        onLoggedOut()
+                        // Balik tab ke Home supaya aman
+                        selectedItem = BottomNavItem.Home
+                    }
                 )
             }
         }
