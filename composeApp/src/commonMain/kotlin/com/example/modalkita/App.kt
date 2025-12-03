@@ -19,10 +19,13 @@ import com.example.modalkita.ui.components.ModalKitaBottomBar
 import com.example.modalkita.ui.funding.InvestorFundingRoot
 import com.example.modalkita.ui.theme.ModalKitaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.example.modalkita.ui.borrower.home.BorrowerHomeRoot
+
 
 // penting: dua ini supaya 'var x by remember { ... }' tidak error
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.example.modalkita.ui.borrower.loan.new.NewLoanRoot
 
 /* ======================= USER ROLE ========================== */
 
@@ -68,6 +71,8 @@ fun MainScreen(
 ) {
     var selectedItem by remember { mutableStateOf(BottomNavItem.Home) }
 
+    var borrowerHomePage by remember { mutableStateOf("dashboard") }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
@@ -81,17 +86,51 @@ fun MainScreen(
         when (selectedItem) {
 
             BottomNavItem.Home -> {
-                // Di sini kamu bisa ganti dengan Home screen beneran
-                Text(
-                    text = when (role) {
-                        UserRole.INVESTOR -> "Home Investor (konten dashboard investor nanti di sini)"
-                        UserRole.BORROWER -> "Home Borrower (konten dashboard borrower nanti di sini)"
-                    },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                )
+                when (role) {
+                    UserRole.INVESTOR -> {
+                        // sementara investor tetap pakai placeholder text
+                        Text(
+                            text = "Home Investor (konten dashboard investor nanti di sini)",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        )
+                    }
+
+                    UserRole.BORROWER -> {
+                        when (borrowerHomePage) {
+
+                            "dashboard" -> BorrowerHomeRoot(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                                onNewApplicationClick = {
+                                    // klik card + → masuk ke alur pengajuan baru
+                                    borrowerHomePage = "new_loan"
+                                },
+                                onApplicationDetailClick = {
+                                    // nanti kalau sudah ada halaman detail pengajuan,
+                                    // bisa diarahkan ke situ
+                                    // borrowerHomePage = "loan_detail"
+                                }
+                            )
+
+                            "new_loan" -> NewLoanRoot(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding),
+                                onBackToHome = {
+                                    // dari form/back atau setelah submit sukses → balik ke dashboard
+                                    borrowerHomePage = "dashboard"
+                                }
+                            )
+                        }
+                    }
+
             }
+
+        }
+
 
             BottomNavItem.Funding -> {
                 if (role == UserRole.INVESTOR) {
