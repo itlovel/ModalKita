@@ -15,11 +15,28 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import com.example.modalkita.data.remote.dto.CreateMidtransLinkRequest
+import com.example.modalkita.data.remote.dto.CreateMidtransLinkResponse
 
+
+// Ktor client untuk call Edge Function Midtrans
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.cio.CIO
+import io.ktor.client.call.body
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.request.header
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import kotlinx.serialization.Serializable
 
 import com.example.modalkita.data.funding.LoanApplicationBlockchainPayload
 import com.example.modalkita.data.funding.SimpleBlockchain
+import io.ktor.http.isSuccess
 
+/* -------------------------------------------------------------------------- */
+/*                         INTERNAL DASHBOARD MAPPING                         */
+/* -------------------------------------------------------------------------- */
 
 private data class LoanDashboardInternal(
     val status: LoanApplicationStatus,
@@ -29,6 +46,7 @@ private data class LoanDashboardInternal(
     val totalAmount: Long?
 )
 
+// Untuk sementara: TIDAK memakai kolom status dari LoanDto
 private fun mapLoanToDashboard(loan: LoanDto?): LoanDashboardInternal {
     if (loan == null) {
         return LoanDashboardInternal(
@@ -40,12 +58,8 @@ private fun mapLoanToDashboard(loan: LoanDto?): LoanDashboardInternal {
         )
     }
 
-    val status = when (loan.status.lowercase()) {
-        "pending", "peninjauan" -> LoanApplicationStatus.PENINJAUAN
-        "funding", "pendanaan"  -> LoanApplicationStatus.PENDANAAN
-        "ready_to_disburse"     -> LoanApplicationStatus.SIAP_DICAIRKAN
-        else                    -> LoanApplicationStatus.NONE
-    }
+    // sementara: tidak baca loan.status dari DB
+    val status = LoanApplicationStatus.NONE
 
     val total = loan.amount
     val funded = loan.fundedAmount ?: 0L
@@ -60,6 +74,52 @@ private fun mapLoanToDashboard(loan: LoanDto?): LoanDashboardInternal {
         totalAmount = total
     )
 }
+
+/* -------------------------------------------------------------------------- */
+/*                     EDGE FUNCTION REQUEST/RESPONSE DTO                     */
+/* -------------------------------------------------------------------------- */
+
+// HttpClient sederhana untuk panggil Edge Function
+private val httpClient = HttpClient(CIO)
+
+private suspend fun callCreateMidtransLinkEdgeFunction(
+    supabaseClient: SupabaseClient,
+    loanId: String
+): String {
+    val functionUrl =
+        "https://mhbhaesdeqnzpzccqmle.supabase.co/functions/v1/create_midtrans_link"
+
+    val accessToken = supabaseClient.auth.currentAccessTokenOrNull()
+
+    val response = httpClient.post(functionUrl) {
+        contentType(ContentType.Application.Json)
+        setBody(
+            buildJsonObject {
+                put("loan_id", loanId)
+            }
+        )
+        if (accessToken != null) {
+            header("Authorization", "Bearer $accessToken")
+        }
+    }
+
+    if (!response.status.isSuccess()) {
+        throw IllegalStateException("Failed to call create_midtrans_link: ${response.status}")
+    }
+
+    val body = response.body<CreateMidtransLinkResponse>()
+    if (body.payment_link_url.isBlank()) {
+        throw IllegalStateException("Empty payment_link_url from edge function")
+    }
+
+    return body.payment_link_url
+}
+
+
+
+/* -------------------------------------------------------------------------- */
+/*                           BORROWER REPOSITORY IMPL                         */
+/* -------------------------------------------------------------------------- */
 
 class BorrowerRepositoryImpl(
     private val supabaseClient: SupabaseClient
@@ -128,41 +188,34 @@ class BorrowerRepositoryImpl(
         val user = supabaseClient.auth.currentUserOrNull()
             ?: error("User not logged in")
 
-        // 1) Siapkan nama pinjaman (sementara pakai deskripsi sebagai judul)
+        // 1) Siapkan nama pinjaman
         val loanName = draft.description.ifBlank { "Pengajuan Pinjaman UMKM" }
 
-        // 2) Siapkan payload untuk blockchain
+        // 2) Payload blockchain
         val payload = LoanApplicationBlockchainPayload(
             borrowerId = user.id,
             loanName = loanName,
             amount = draft.amount,
             tenorMonths = draft.tenorMonths,
-            // Bisa pilih: simpan enum name ("MODAL_USAHA") atau label ("Modal Usaha")
             purpose = draft.purpose.name
         )
 
-        // 3) Tambahkan blok baru ke SimpleBlockchain & ambil hash-nya
+        // 3) Tambah blok baru ke SimpleBlockchain & ambil hash
         val block = SimpleBlockchain().addLoanApplicationBlock(payload)
         val txHash = block.hash
 
-        // 4) Build JSON body untuk umkm_loans (bukan Map<String, Any?> lagi)
+        // 4) Insert loan ke tabel umkm_loans
         val body = buildJsonObject {
             put("borrower_id", user.id)
-
-            // field wajib di schema kamu:
             put("name", loanName)
-            put("purpose", draft.purpose.name)   // disimpan sebagai text
-            put("credit_score", "BAIK")          // sementara default
-            put("sector", "LAINNYA")             // sementara default
-
+            put("purpose", draft.purpose.name)
+            put("credit_score", "BAIK")
+            put("sector", "LAINNYA")
             put("amount", draft.amount)
             put("tenor_months", draft.tenorMonths)
-
-            // opsional: kalau kolom ini ada di schema
             put("funded_percentage", 0)
             put("investors_count", 0)
 
-            // field tambahan
             draft.supportingDocUrl?.let { url ->
                 put("supporting_doc_url", url)
             }
@@ -170,12 +223,34 @@ class BorrowerRepositoryImpl(
             put("tx_hash", txHash)
         }
 
-        // 5) Insert ke tabel umkm_loans
-        supabaseClient
+        val insertResult = supabaseClient
             .from("umkm_loans")
-            .insert(body)
+            .insert(body) {
+                select()
+            }
+
+        val insertedLoans = insertResult.decodeList<LoanDto>()
+        val newLoan = insertedLoans.firstOrNull()
+            ?: error("Gagal membaca loan yang baru dibuat dari Supabase")
+
+        val loanId = newLoan.id
+
+        // 5) Panggil Edge Function Midtrans — dengan error handling
+        try {
+            val paymentLink = callCreateMidtransLinkEdgeFunction(
+                supabaseClient = supabaseClient,
+                loanId = loanId,      // sekarang cukup loanId
+            )
+
+            // Optional: kalau mau, kamu bisa pakai paymentLink di UI, tapi DB sudah diupdate oleh Edge Function.
+            // Misal: return / emit result ke ViewModel.
+
+        } catch (e: Exception) {
+            // Di sini kamu bisa:
+            // - log error
+            // - optional: lempar lagi biar UI bisa nunjukin "Gagal membuat link pembayaran"
+            throw IllegalStateException("Gagal membuat link pembayaran Midtrans", e)
+        }
     }
-
-
 
 }

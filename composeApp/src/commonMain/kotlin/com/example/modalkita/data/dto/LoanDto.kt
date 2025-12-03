@@ -9,7 +9,7 @@ data class LoanDto(
     @SerialName("borrower_id")
     val borrowerId: String,
     val amount: Long,
-    val status: String,
+    val status: String? = null,
     @SerialName("funded_amount")
     val fundedAmount: Long? = null,
     @SerialName("investor_count")

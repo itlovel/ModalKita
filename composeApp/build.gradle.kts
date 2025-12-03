@@ -53,9 +53,12 @@ kotlin {
             implementation("io.github.jan-tennert.supabase:postgrest-kt")
             implementation("io.github.jan-tennert.supabase:storage-kt")
 
+
             // ===== Ktor client core (wajib satu versi yang sama) =====
             implementation("io.ktor:ktor-client-core:3.3.3")
             implementation("io.ktor:ktor-client-cio:3.3.3")
+            implementation("io.ktor:ktor-client-content-negotiation:3.3.3")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.3.3")
 
             // ===== Coroutines =====
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
