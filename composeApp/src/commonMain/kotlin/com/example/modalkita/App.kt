@@ -17,13 +17,14 @@ import com.example.modalkita.ui.auth.PilihRole
 import com.example.modalkita.ui.components.BottomNavItem
 import com.example.modalkita.ui.components.ModalKitaBottomBar
 import com.example.modalkita.ui.funding.InvestorFundingRoot
+import com.example.modalkita.ui.investment.InvestorInvestmentRoot
+import com.example.modalkita.ui.profile.InvestorProfileRoot
 import com.example.modalkita.ui.theme.ModalKitaTheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 // penting: dua ini supaya 'var x by remember { ... }' tidak error
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import com.example.modalkita.ui.investment.InvestorInvestmentRoot
 
 /* ======================= USER ROLE ========================== */
 
@@ -54,7 +55,11 @@ fun App(
             // Setelah login, masuk ke layar utama yang pakai bottom nav
             MainScreen(
                 role = currentRole!!,
-                openMidtransPayment = openMidtransPayment
+                openMidtransPayment = openMidtransPayment,
+                onLoggedOut = {
+                    // Logout global: balik lagi ke AuthFlow
+                    currentRole = null
+                }
             )
         }
     }
@@ -65,7 +70,8 @@ fun App(
 @Composable
 fun MainScreen(
     role: UserRole,
-    openMidtransPayment: (String) -> Unit
+    openMidtransPayment: (String) -> Unit,
+    onLoggedOut: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(BottomNavItem.Home) }
 
@@ -82,11 +88,11 @@ fun MainScreen(
         when (selectedItem) {
 
             BottomNavItem.Home -> {
-                // Di sini kamu bisa ganti dengan Home screen beneran
+                // Placeholder home, bisa kamu ganti dengan dashboard beneran
                 Text(
                     text = when (role) {
-                        UserRole.INVESTOR -> "Home Investor (konten dashboard investor nanti di sini)"
-                        UserRole.BORROWER -> "Home Borrower (konten dashboard borrower nanti di sini)"
+                        UserRole.INVESTOR -> "Home Investor (dashboard investor di sini)"
+                        UserRole.BORROWER -> "Home Borrower (dashboard borrower di sini)"
                     },
                     modifier = Modifier
                         .fillMaxSize()
@@ -104,7 +110,6 @@ fun MainScreen(
                         onOpenPaymentLink = openMidtransPayment
                     )
                 } else {
-                    // Kalau borrower memaksa ke tab Funding → diblokir
                     Text(
                         text = "Fitur pendanaan hanya bisa diakses oleh Investor.",
                         modifier = Modifier
@@ -115,19 +120,34 @@ fun MainScreen(
             }
 
             BottomNavItem.Loans -> {
-                InvestorInvestmentRoot(
-                    modifier = Modifier.fillMaxSize(),
-                    onOpenPaymentLink = openMidtransPayment
-                )
+                if (role == UserRole.INVESTOR) {
+                    InvestorInvestmentRoot(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        onOpenPaymentLink = openMidtransPayment
+                    )
+                } else {
+                    Text(
+                        text = "Fitur investasi hanya bisa diakses oleh Investor.",
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    )
+                }
             }
 
             BottomNavItem.Profile -> {
-                // Placeholder, nanti kamu isi dengan profil user (nama, email, role, dll)
-                Text(
-                    text = "Halaman Profil (nanti diisi data profil Supabase).",
+                InvestorProfileRoot(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
+                        .padding(innerPadding),
+                    onLoggedOut = {
+                        // Reset tab ke Home
+                        selectedItem = BottomNavItem.Home
+                        // Beri tahu App bahwa user sudah logout
+                        onLoggedOut()
+                    }
                 )
             }
         }
