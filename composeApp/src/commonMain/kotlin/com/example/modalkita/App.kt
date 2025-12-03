@@ -23,6 +23,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 // penting: dua ini supaya 'var x by remember { ... }' tidak error
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.example.modalkita.ui.investment.InvestorInvestmentRoot
 
 /* ======================= USER ROLE ========================== */
 
@@ -114,12 +115,9 @@ fun MainScreen(
             }
 
             BottomNavItem.Loans -> {
-                // Placeholder, nanti kamu isi dengan fitur pinjaman (sesuai role)
-                Text(
-                    text = "Halaman Loans (nanti diisi sesuai kebutuhan tugas).",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
+                InvestorInvestmentRoot(
+                    modifier = Modifier.fillMaxSize(),
+                    onOpenPaymentLink = openMidtransPayment
                 )
             }
 
