@@ -51,6 +51,7 @@ kotlin {
             implementation(project.dependencies.platform("io.github.jan-tennert.supabase:bom:3.2.6"))
             implementation("io.github.jan-tennert.supabase:auth-kt")
             implementation("io.github.jan-tennert.supabase:postgrest-kt")
+            implementation("io.github.jan-tennert.supabase:storage-kt")
 
             // ===== Ktor client core (wajib satu versi yang sama) =====
             implementation("io.ktor:ktor-client-core:3.3.3")

@@ -13,6 +13,13 @@ import com.example.modalkita.domain.repository.BorrowerRepository
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+
+import com.example.modalkita.data.funding.LoanApplicationBlockchainPayload
+import com.example.modalkita.data.funding.SimpleBlockchain
+
 
 private data class LoanDashboardInternal(
     val status: LoanApplicationStatus,
@@ -121,22 +128,54 @@ class BorrowerRepositoryImpl(
         val user = supabaseClient.auth.currentUserOrNull()
             ?: error("User not logged in")
 
+        // 1) Siapkan nama pinjaman (sementara pakai deskripsi sebagai judul)
+        val loanName = draft.description.ifBlank { "Pengajuan Pinjaman UMKM" }
+
+        // 2) Siapkan payload untuk blockchain
+        val payload = LoanApplicationBlockchainPayload(
+            borrowerId = user.id,
+            loanName = loanName,
+            amount = draft.amount,
+            tenorMonths = draft.tenorMonths,
+            // Bisa pilih: simpan enum name ("MODAL_USAHA") atau label ("Modal Usaha")
+            purpose = draft.purpose.name
+        )
+
+        // 3) Tambahkan blok baru ke SimpleBlockchain & ambil hash-nya
+        val block = SimpleBlockchain().addLoanApplicationBlock(payload)
+        val txHash = block.hash
+
+        // 4) Build JSON body untuk umkm_loans (bukan Map<String, Any?> lagi)
+        val body = buildJsonObject {
+            put("borrower_id", user.id)
+
+            // field wajib di schema kamu:
+            put("name", loanName)
+            put("purpose", draft.purpose.name)   // disimpan sebagai text
+            put("credit_score", "BAIK")          // sementara default
+            put("sector", "LAINNYA")             // sementara default
+
+            put("amount", draft.amount)
+            put("tenor_months", draft.tenorMonths)
+
+            // opsional: kalau kolom ini ada di schema
+            put("funded_percentage", 0)
+            put("investors_count", 0)
+
+            // field tambahan
+            draft.supportingDocUrl?.let { url ->
+                put("supporting_doc_url", url)
+            }
+
+            put("tx_hash", txHash)
+        }
+
+        // 5) Insert ke tabel umkm_loans
         supabaseClient
             .from("umkm_loans")
-            .insert(
-                mapOf(
-                    "borrower_id" to user.id,
-                    "amount" to draft.amount,
-                    "tenor_months" to draft.tenorMonths,
-                    "purpose" to draft.purpose.label,
-                    "description" to draft.description,
-                    "status" to "peninjauan",  // default
-                    // opsional simpan field yg lain:
-                    "total_to_pay" to summary.totalToPay,
-                    "installment_per_month" to summary.installmentPerMonth,
-                    "penalty_per_day" to summary.penaltyPerDayLate
-                )
-            )
+            .insert(body)
     }
+
+
 
 }

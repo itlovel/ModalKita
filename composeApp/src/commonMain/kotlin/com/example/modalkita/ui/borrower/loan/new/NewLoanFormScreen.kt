@@ -54,8 +54,10 @@ fun NewLoanFormScreen(
     viewModel: NewLoanViewModel,
     onBack: () -> Unit,
     onNext: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+    modifier: Modifier = Modifier,
+    onDocumentClick: () -> Unit = {}   // 👈 default no-op
+)
+{
     val state by viewModel.uiState.collectAsState()
 
     Surface(
@@ -114,8 +116,7 @@ fun NewLoanFormScreen(
                 Spacer(Modifier.height(10.dp))
 
                 DocumentUploadCard(
-                    // TODO: nanti kamu sambungkan dengan picker / uploader
-                    onClick = { /* TODO upload dokumen pendukung */ }
+                    onClick = onDocumentClick
                 )
 
                 Spacer(Modifier.height(16.dp))

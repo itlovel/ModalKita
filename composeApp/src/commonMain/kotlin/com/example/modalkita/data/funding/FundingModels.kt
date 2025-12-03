@@ -97,6 +97,18 @@ data class InvestmentHistory(
 
 // ============= BLOCKCHAIN SEDERHANA (POC) =============
 
+// Payload sederhana untuk blok pengajuan pinjaman borrower
+data class LoanApplicationBlockchainPayload(
+    val borrowerId: String,
+    val loanName: String,
+    val amount: Long,
+    val tenorMonths: Int,
+    val purpose: String,  // simpan text seperti "MODAL_USAHA" / label lain
+)
+
+
+
+
 @Serializable
 data class Block(
     val index: Int,
@@ -157,6 +169,41 @@ class SimpleBlockchain {
         chain += block
         return block
     }
+
+    fun addLoanApplicationBlock(
+        application: LoanApplicationBlockchainPayload
+    ): Block {
+        val previous = latestBlock()
+        val newIndex = previous.index + 1
+        val now = getTimeMillis()
+
+        // Isi data bebas yang penting stabil & konsisten
+        val data = "LOAN_APP:" +
+                "${application.borrowerId}:" +
+                "${application.loanName}:" +
+                "${application.amount}:" +
+                "${application.tenorMonths}:" +
+                application.purpose
+
+        val hash = calculateHash(
+            index = newIndex,
+            timestamp = now,
+            previousHash = previous.hash,
+            data = data
+        )
+
+        val block = Block(
+            index = newIndex,
+            timestampMillis = now,
+            previousHash = previous.hash,
+            data = data,
+            hash = hash
+        )
+
+        chain += block
+        return block
+    }
+
 
     fun allBlocks(): List<Block> = chain.toList()
 }

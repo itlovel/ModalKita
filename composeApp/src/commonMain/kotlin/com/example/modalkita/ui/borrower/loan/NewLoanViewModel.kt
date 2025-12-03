@@ -47,6 +47,10 @@ class NewLoanViewModel(
         _uiState.value = _uiState.value.copy(description = desc)
     }
 
+    fun setSupportingDocUrl(url: String) {
+        _uiState.value = _uiState.value.copy(supportingDocUrl = url)
+    }
+
     fun buildSummary(): Boolean {
         val amount = _uiState.value.amountText.replace(".", "").toLongOrNull()
         if (amount == null || amount <= 0) {
